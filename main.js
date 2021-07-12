@@ -30,24 +30,36 @@ async function init() {
     document.querySelector("#checkids").disabled = false;
 }
 
+// Lazily stolen from https://scotch.io/courses/the-ultimate-guide-to-javascript-algorithms/array-chunking
+function chunkArray(array, size) {
+    let result = []
+    for (let i = 0; i < array.length; i += size) {
+        let chunk = array.slice(i, i + size)
+        result.push(chunk)
+    }
+    return result
+}
+
 async function checkIDs() {
     const RESULTS_ELEMENT = document.querySelector("#results");
 
     let vid_list_text = document.querySelector("#ids").value;
     let vids = Array.from(vid_list_text.matchAll(/[a-zA-Z0-9_-]{6,11}/g), match => match[0]);
-
-    // TODO: Groups of 50
-    let result = await execute(vids);
-    let vid_results = result.result.items;
-    let vulnerable_vids = vid_results.filter(item => item.status.privacyStatus === "unlisted" && new Date(item.snippet.publishedAt) < CUTOFF_DATE);
-    for(let vulnerable_vid of vulnerable_vids) {
-        let li = document.createElement("li");
-        let a = document.createElement("a");
-        a.textContent = vulnerable_vid.snippet.title;
-        a.href = `https://youtu.be/${vulnerable_vid.id}`;
-        li.append(a);
-        RESULTS_ELEMENT.append(li);
-    }
+    let vid_chunks = chunkArray(vids, 50);
+    for(vids of vid_chunks) {
+        let result = await execute(vids);
+        let vid_results = result.result.items;
+        let vulnerable_vids = vid_results.filter(item => item.status.privacyStatus === "unlisted" && new Date(item.snippet.publishedAt) < CUTOFF_DATE);
+        for(let vulnerable_vid of vulnerable_vids) {
+            let li = document.createElement("li");
+            let a = document.createElement("a");
+            a.textContent = vulnerable_vid.snippet.title;
+            a.href = `https://youtu.be/${vulnerable_vid.id}`;
+            li.append(a);
+            RESULTS_ELEMENT.append(li);
+        }
+        await new Promise((resolve, reject) => setTimeout(resolve, 1000));
+    }    
 }
 
 document.querySelector("#checkids").addEventListener("click", checkIDs);

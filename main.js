@@ -42,11 +42,13 @@ function chunkArray(array, size) {
 
 async function checkIDs() {
     const RESULTS_ELEMENT = document.querySelector("#results");
+    const PROGRESS_ELEMENT = document.querySelector("progress");
 
     let vid_list_text = document.querySelector("#ids").value;
     let vids = Array.from(vid_list_text.matchAll(/[a-zA-Z0-9_-]{6,11}/g), match => match[0]);
+    PROGRESS_ELEMENT.max = vids.length;
     let vid_chunks = chunkArray(vids, 50);
-    for(vids of vid_chunks) {
+    for(let [vid_chunks_index, vids] of vid_chunks.entries()) {
         let result = await execute(vids);
         let vid_results = result.result.items;
         let vulnerable_vids = vid_results.filter(item => item.status.privacyStatus === "unlisted" && new Date(item.snippet.publishedAt) < CUTOFF_DATE);
@@ -57,7 +59,9 @@ async function checkIDs() {
             a.href = `https://youtu.be/${vulnerable_vid.id}`;
             li.append(a);
             RESULTS_ELEMENT.append(li);
+            
         }
+        PROGRESS_ELEMENT.value = vid_chunks_index * 50 + vids.length;
         await new Promise((resolve, reject) => setTimeout(resolve, 1000));
     }    
 }

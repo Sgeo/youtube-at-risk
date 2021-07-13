@@ -99,13 +99,21 @@ async function processIDs(vids) {
     }
 }
 
+function clear() {
+    RESULTS_ELEMENT.replaceChildren();
+    VIDEO_PROGRESS_ELEMENT.max = 0;
+    VIDEO_PROGRESS_ELEMENT.value = 0;
+}
+
 async function checkIDs() {
+    clear();
     let vid_list_text = document.querySelector("#ids").value;
     let vids = Array.from(vid_list_text.matchAll(/[a-zA-Z0-9_-]{6,11}/g), match => match[0]);
     processIDs(vids);
 }
 
 async function checkPlaylist() {
+    clear();
     let playlistId = document.querySelector("#playlist").value;
     let vids = [];
     for await(item of executePlaylist(playlistId)) {

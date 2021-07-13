@@ -7,6 +7,7 @@
 const CUTOFF_DATE = new Date("2017-01-03"); // Technically cutoff is the first, but want some leeway because I hate timezones
 
 const RESULTS_ELEMENT = document.querySelector("#results");
+const RESULTS_TEXTAREA = document.querySelector("#results_textarea");
 const VIDEO_PROGRESS_ELEMENT = document.querySelector("#video_progress");
 
 
@@ -83,6 +84,7 @@ function showVulnerableVideo(video) {
     a.href = `https://youtu.be/${video.id}`;
     li.append(a);
     RESULTS_ELEMENT.append(li);
+    RESULTS_TEXTAREA.value += `https://youtu.be/${video.id}\n`;
 }
 
 function processItems(vid_results) {
@@ -109,6 +111,7 @@ async function processIDs(vids) {
 
 function clear() {
     RESULTS_ELEMENT.replaceChildren();
+    RESULTS_TEXTAREA.value = "";
     VIDEO_PROGRESS_ELEMENT.max = 0;
     VIDEO_PROGRESS_ELEMENT.value = 0;
 }

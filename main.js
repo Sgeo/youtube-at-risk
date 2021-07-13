@@ -23,7 +23,7 @@ function execute(ids) {
         "id": [
             ids.join(",")
         ]
-    });
+    }).then(null, showError);
 }
 
 async function* executePlaylist(id) {
@@ -39,7 +39,7 @@ async function* executePlaylist(id) {
         if(nextPageToken) {
             options.pageToken = nextPageToken;
         }
-        let playlistItems = await gapi.client.youtube.playlistItems.list(options).then(r => r.result);
+        let playlistItems = await gapi.client.youtube.playlistItems.list(options).then(r => r.result).then(null, showError);
         nextPageToken = playlistItems.nextPageToken;
         VIDEO_PROGRESS_ELEMENT.max = playlistItems.pageInfo.totalResults;
 
@@ -66,6 +66,14 @@ function chunkArray(array, size) {
         result.push(chunk)
     }
     return result
+}
+
+function showError(error) {
+    console.error(error);
+    let li = document.createElement("li");
+    li.textContent = error?.message ?? error?.result?.error?.message ?? JSON.stringify(error);
+    li.classList.add("error");
+    RESULTS_ELEMENT.append(li);
 }
 
 function showVulnerableVideo(video) {
@@ -107,23 +115,31 @@ function clear() {
 
 async function checkIDs() {
     clear();
-    let vid_list_text = document.querySelector("#ids").value;
-    let vids = Array.from(vid_list_text.matchAll(/[a-zA-Z0-9_-]{6,11}/g), match => match[0]);
-    processIDs(vids);
+    try {
+        let vid_list_text = document.querySelector("#ids").value;
+        let vids = Array.from(vid_list_text.matchAll(/[a-zA-Z0-9_-]{6,11}/g), match => match[0]);
+        await processIDs(vids);
+    } catch(e) {
+        showError(e);
+    }
 }
 
 async function checkPlaylist() {
     clear();
-    let playlistId = document.querySelector("#playlist").value;
-    let vids = [];
-    for await(item of executePlaylist(playlistId)) {
-        if(item.status.privacyStatus === "unlisted" && new Date(item.contentDetails.videoPublishedAt) < CUTOFF_DATE) {
-            showVulnerableVideo({
-                id: item.contentDetails.videoId,
-                title: item.snippet.title
-            });
+    try {
+        let playlistId = document.querySelector("#playlist").value;
+        let vids = [];
+        for await(item of executePlaylist(playlistId)) {
+            if(item.status.privacyStatus === "unlisted" && new Date(item.contentDetails.videoPublishedAt) < CUTOFF_DATE) {
+                showVulnerableVideo({
+                    id: item.contentDetails.videoId,
+                    title: item.snippet.title
+                });
+            }
+            VIDEO_PROGRESS_ELEMENT.value += 1;
         }
-        VIDEO_PROGRESS_ELEMENT.value += 1;
+    } catch(e) {
+        showError(e);
     }
 }
 

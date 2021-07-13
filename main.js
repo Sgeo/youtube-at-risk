@@ -31,7 +31,7 @@ async function* executePlaylist(id) {
     do {
         let options = {
             "part": [
-                "contentDetails,status"
+                "contentDetails,status,snippet"
             ],
             "playlistId": id,
             "maxResults": 50
@@ -41,10 +41,12 @@ async function* executePlaylist(id) {
         }
         let playlistItems = await gapi.client.youtube.playlistItems.list(options).then(r => r.result);
         nextPageToken = playlistItems.nextPageToken;
+        VIDEO_PROGRESS_ELEMENT.max = playlistItems.pageInfo.totalResults;
 
         for(item of playlistItems.items) {
             yield item;
         }
+        await new Promise((resolve, reject) => setTimeout(resolve, 1000));
     } while(nextPageToken);
 }
 
@@ -66,15 +68,22 @@ function chunkArray(array, size) {
     return result
 }
 
+function showVulnerableVideo(video) {
+    let li = document.createElement("li");
+    let a = document.createElement("a");
+    a.textContent = video.title;
+    a.href = `https://youtu.be/${video.id}`;
+    li.append(a);
+    RESULTS_ELEMENT.append(li);
+}
+
 function processItems(vid_results) {
     let vulnerable_vids = vid_results.filter(item => item.status.privacyStatus === "unlisted" && new Date(item.snippet.publishedAt) < CUTOFF_DATE);
     for(let vulnerable_vid of vulnerable_vids) {
-        let li = document.createElement("li");
-        let a = document.createElement("a");
-        a.textContent = vulnerable_vid.snippet.title;
-        a.href = `https://youtu.be/${vulnerable_vid.id}`;
-        li.append(a);
-        RESULTS_ELEMENT.append(li);
+        showVulnerableVideo({
+            id: vulnerable_vid.id,
+            title: vulnerable_vid.snippet.title
+        });
     }
 }
 
@@ -100,14 +109,14 @@ async function checkPlaylist() {
     let playlistId = document.querySelector("#playlist").value;
     let vids = [];
     for await(item of executePlaylist(playlistId)) {
-        if(item.status.privacyStatus === "unlisted") {
-            vids.push(item.contentDetails.videoId);
-        } else {
-            console.log(`Item ${item} not unlisted`);
-            console.log(item);
+        if(item.status.privacyStatus === "unlisted" && new Date(item.contentDetails.videoPublishedAt) < CUTOFF_DATE) {
+            showVulnerableVideo({
+                id: item.contentDetails.videoId,
+                title: item.snippet.title
+            });
         }
+        VIDEO_PROGRESS_ELEMENT.value += 1;
     }
-    processIDs(vids);
 }
 
 document.querySelector("#checkids").addEventListener("click", checkIDs);

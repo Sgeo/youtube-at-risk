@@ -6,6 +6,9 @@
 
 const CUTOFF_DATE = new Date("2017-01-03"); // Technically cutoff is the first, but want some leeway because I hate timezones
 
+const RESULTS_ELEMENT = document.querySelector("#results");
+const VIDEO_PROGRESS_ELEMENT = document.querySelector("#video_progress");
+
 
 function loadClient() {
     gapi.client.setApiKey("AIzaSyC228Ik4RO2aP7kfmTmDRG1SOBpugc9uWY");
@@ -23,11 +26,34 @@ function execute(ids) {
     });
 }
 
+async function* executePlaylist(id) {
+    let nextPageToken = null;
+    do {
+        let options = {
+            "part": [
+                "contentDetails,status"
+            ],
+            "playlistId": id,
+            "maxResults": 50
+        };
+        if(nextPageToken) {
+            options.pageToken = nextPageToken;
+        }
+        let playlistItems = await gapi.client.youtube.playlistItems.list(options).then(r => r.result);
+        nextPageToken = playlistItems.nextPageToken;
+
+        for(item of playlistItems.items) {
+            yield item;
+        }
+    } while(nextPageToken);
+}
+
 async function init() {
     await new Promise((resolve, reject) => gapi.load("client", resolve));
     await loadClient();
     console.log("Initialized");
     document.querySelector("#checkids").disabled = false;
+    document.querySelector("#checkplaylist").disabled = false;
 }
 
 // Lazily stolen from https://scotch.io/courses/the-ultimate-guide-to-javascript-algorithms/array-chunking
@@ -40,33 +66,52 @@ function chunkArray(array, size) {
     return result
 }
 
-async function checkIDs() {
-    const RESULTS_ELEMENT = document.querySelector("#results");
-    const PROGRESS_ELEMENT = document.querySelector("progress");
+function processItems(vid_results) {
+    let vulnerable_vids = vid_results.filter(item => item.status.privacyStatus === "unlisted" && new Date(item.snippet.publishedAt) < CUTOFF_DATE);
+    for(let vulnerable_vid of vulnerable_vids) {
+        let li = document.createElement("li");
+        let a = document.createElement("a");
+        a.textContent = vulnerable_vid.snippet.title;
+        a.href = `https://youtu.be/${vulnerable_vid.id}`;
+        li.append(a);
+        RESULTS_ELEMENT.append(li);
+    }
+}
 
-    let vid_list_text = document.querySelector("#ids").value;
-    let vids = Array.from(vid_list_text.matchAll(/[a-zA-Z0-9_-]{6,11}/g), match => match[0]);
-    PROGRESS_ELEMENT.max = vids.length;
+async function processIDs(vids) {
+    VIDEO_PROGRESS_ELEMENT.max = vids.length;
     let vid_chunks = chunkArray(vids, 50);
     for(let [vid_chunks_index, vids] of vid_chunks.entries()) {
         let result = await execute(vids);
         let vid_results = result.result.items;
-        let vulnerable_vids = vid_results.filter(item => item.status.privacyStatus === "unlisted" && new Date(item.snippet.publishedAt) < CUTOFF_DATE);
-        for(let vulnerable_vid of vulnerable_vids) {
-            let li = document.createElement("li");
-            let a = document.createElement("a");
-            a.textContent = vulnerable_vid.snippet.title;
-            a.href = `https://youtu.be/${vulnerable_vid.id}`;
-            li.append(a);
-            RESULTS_ELEMENT.append(li);
-            
-        }
-        PROGRESS_ELEMENT.value = vid_chunks_index * 50 + vids.length;
+        processItems(vid_results);
+        VIDEO_PROGRESS_ELEMENT.value = vid_chunks_index * 50 + vids.length;
         await new Promise((resolve, reject) => setTimeout(resolve, 1000));
-    }    
+    }
+}
+
+async function checkIDs() {
+    let vid_list_text = document.querySelector("#ids").value;
+    let vids = Array.from(vid_list_text.matchAll(/[a-zA-Z0-9_-]{6,11}/g), match => match[0]);
+    processIDs(vids);
+}
+
+async function checkPlaylist() {
+    let playlistId = document.querySelector("#playlist").value;
+    let vids = [];
+    for await(item of executePlaylist(playlistId)) {
+        if(item.status.privacyStatus === "unlisted") {
+            vids.push(item.contentDetails.videoId);
+        } else {
+            console.log(`Item ${item} not unlisted`);
+            console.log(item);
+        }
+    }
+    processIDs(vids);
 }
 
 document.querySelector("#checkids").addEventListener("click", checkIDs);
+document.querySelector("#checkplaylist").addEventListener("click", checkPlaylist);
 
 init();
 
